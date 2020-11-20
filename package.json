@@ -11,7 +11,7 @@
   },
   "keywords": [],
   "author": "elastic.io GmbH <info@elastic.io> (http://elastic.io)",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "dependencies": {
     "express": "^4.17.1",
     "homematic-js-xmlapi": "^0.8.1",
