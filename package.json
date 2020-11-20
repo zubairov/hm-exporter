@@ -6,10 +6,19 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "type": "module",
   "keywords": [],
   "author": "elastic.io GmbH <info@elastic.io> (http://elastic.io)",
   "license": "ISC",
   "dependencies": {
-    "homematic-js-xmlapi": "^0.8.1"
+    "express": "^4.17.1",
+    "homematic-js-xmlapi": "^0.8.1",
+    "prom-client": "^12.0.0",
+    "tslib": "^2.0.3",
+    "tslint-config-airbnb": "^5.11.2"
+  },
+  "devDependencies": {
+    "tslint": "^6.1.3",
+    "typescript": "^4.1.2"
   }
 }
