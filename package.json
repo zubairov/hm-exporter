@@ -1,0 +1,15 @@
+{
+  "name": "hm-exporter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "elastic.io GmbH <info@elastic.io> (http://elastic.io)",
+  "license": "ISC",
+  "dependencies": {
+    "homematic-js-xmlapi": "^0.8.1"
+  }
+}
