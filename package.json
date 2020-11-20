@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc --build",
     "clean": "tsc --build --clean",
-    "start": "tsc && node dist/src/exporter.js"
+    "start": "tsc && node dist/exporter.js"
   },
   "keywords": [],
   "author": "elastic.io GmbH <info@elastic.io> (http://elastic.io)",
