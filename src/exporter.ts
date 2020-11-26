@@ -1,7 +1,12 @@
-import { XmlApi } from "homematic-js-xmlapi";
+import stream from 'stream';
+import { BaseTag, createStream, QualifiedAttribute, Tag } from 'sax';
+import { promisify } from 'util';
+import got from 'got';
+import Debug from "debug";
 import { Registry, collectDefaultMetrics, Gauge, register } from "prom-client";
 import express from "express";
 
+const debug = Debug("hm-exporter");
 const METRIC_PREFIX = 'hm_';
 
 interface MetricsDescription {
@@ -28,7 +33,7 @@ const METRICS: { [key: string]: MetricsDescription } = {
     },
     'VALVE_STATE': {
         metricName: 'ventil_state',
-        help: 'State of the ventil of the heating'
+        help: 'Open state of the ventil of the heating in %'
     },
     'LEVEL': {
         metricName: 'ventil_level',
@@ -106,19 +111,16 @@ for (const [metric, desc] of Object.entries(METRICS)) {
     gauges[metric] = new Gauge({
         name: METRIC_PREFIX + desc.metricName,
         help: desc.help,
-        labelNames: ['device', 'channel', 'address']
+        labelNames: ['device', 'type', 'address']
     })
 }
 
-const unused: { [key: string]: boolean } = {};
-
-const xmlApi = new XmlApi("192.168.178.31", 80);
 collectDefaultMetrics({ gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5] });
 
 const server = express();
 server.get('/metrics', async (req, res) => {
     try {
-        await refreshData();
+        await fetchValues();
         res.set('Content-Type', register.contentType);
         res.end(register.metrics());
     } catch (ex) {
@@ -128,11 +130,73 @@ server.get('/metrics', async (req, res) => {
 });
 
 
+async function fetchValues() {
+    const URL = `http://192.168.178.31/addons/xmlapi/statelist.cgi`
+    const saxStream = createStream(true, { lowercase: true, normalize: true });
+    let deviceAttributes: { [key: string]: string; } | null = null;
+    saxStream.on("error", (e) => {
+        console.error(`Can't parse results of the ${URL}`, e)
+    });
+    saxStream.on("opentag", (node: Tag) => {
+        if (node.name == 'datapoint' && deviceAttributes != null) {
+            //debug('Found data point %j', node.attributes);            
+            processDataPoint(deviceAttributes.name, node.attributes);
+        } else if (node.name == 'device' && !node.isSelfClosing) {
+            deviceAttributes = node.attributes;
+            debug('Found device device, %j', node.attributes);
+        }
+    });
+    saxStream.on('closetag', (tagName) => {
+        if (tagName == 'device') {
+            deviceAttributes = null;
+        }
+    });
+    console.log(`Loading XML data from ${URL}`);
+    return new Promise<void>((ok) => {
+        saxStream.on('end', () => {
+            console.log('Parsing finished');
+            ok();
+        });
+        stream.pipeline(got.stream(URL), saxStream, (err) => {
+            console.error('Error happened', err);
+        });
+    });
+}
+
+function processDataPoint(deviceName: string, attr: { [key: string]: string }) {
+    try {
+        if (gauges[attr.type]) {
+            const gauge = gauges[attr.type];
+            const [deviceType, deviceId] = attr.name.split('.');
+            debug(`Found measurement ${attr.type}`, { deviceName, deviceType, deviceId, value: attr.value, valueType: attr.valuetype });
+            if (attr.valuetype == "4" && attr.value && attr.value.length > 0) {
+                // Float values
+                const value: number = parseFloat(attr.value);
+                gauge.labels(deviceName, deviceType, deviceId).set(value);
+            } else if (attr.valuetype == "2" && attr.value && attr.value.length > 0) {
+                // Boolean
+                const value: boolean = attr.value == 'true';
+                gauge.labels(deviceName, deviceType, deviceId).set(value ? 1 : 0);
+            } else if (attr.valuetype == "16" && attr.value && attr.value.length > 0) {
+                // Percentage
+                const value: number = parseInt(attr.value);
+                gauge.labels(deviceName, deviceType, deviceId).set(100);
+            } else if (attr.valuetype == "8" && attr.value && attr.value.length > 0) {
+                // No f.king idea what valuetype == 8 means but it seems to be a number
+                const value: number = parseInt(attr.value);
+                gauge.labels(deviceName, deviceType, deviceId).set(value);
+            }
+        }
+    } catch (err) {
+        console.error(`Failed to parse attribute values ${JSON.stringify(attr)}`, err);
+    }
+}
+
 (async () => {
     try {
         console.log('Starting HM Exporter');
-        const version = await xmlApi.getVersion();
-        console.log(`XML Addon version ${version} is found on CCU`);
+        //const version = await xmlApi.getVersion();
+        //console.log(`XML Addon version ${version} is found on CCU`);
         const port = process.env.PORT || 9140;
         console.log(
             `Server listening to ${port}, metrics exposed on /metrics endpoint`,
@@ -142,44 +206,3 @@ server.get('/metrics', async (req, res) => {
         console.log(e);
     }
 })();
-
-async function refreshData() {
-    console.log('Fetching devices');
-    const devices = await xmlApi.getStateList();
-    if (devices) {
-        console.log(`Found ${devices?.length} devices`);
-        for (const device of devices) {
-            if (!device.name.startsWith('HM-RCV-50')) {
-                for (const channel of device.channel.values()) {
-                    //console.log(`\t`,channel.toString());
-                    for (const dataPoint of channel.dataPoint.values()) {
-                        console.log(`Data point name is ${dataPoint.type}`);
-                        const [type, ch, metric] = dataPoint.name.split('.');
-                        if (gauges[metric]) {
-                            console.log(`\t\t${metric} of device=${device.name} channel=${channel.name} address=${ch} has value of ${dataPoint.value}`);
-                            if (dataPoint.value) {
-                                if (typeof dataPoint.value == 'boolean') {
-                                    gauges[metric].labels(device.name, channel.name, ch).set(dataPoint.value ? 1 : 0);
-                                } else if (typeof dataPoint.value == 'number') {
-                                    gauges[metric].labels(device.name, channel.name, ch).set(dataPoint.value);
-                                } else {
-                                    try {
-                                        const value = parseFloat(dataPoint.value);
-                                        gauges[metric].labels(device.name, channel.name, ch).set(value);
-                                    } catch (err) {
-                                        console.error(`Failed to parse value ${dataPoint.value} of type ${typeof dataPoint.value} to float`, err);
-                                    }
-                                }
-                            }
-                        } else {
-                            unused[metric] = true;
-                        }
-                    }
-                }
-            }
-        }
-        //console.log('Unused\n %s', Object.keys(unused).join('\n'));
-    } else {
-        throw new Error('No devices were found, something is wrong');
-    }
-}
