@@ -13,11 +13,13 @@
   "author": "elastic.io GmbH <info@elastic.io> (http://elastic.io)",
   "license": "Apache-2.0",
   "dependencies": {
+    "@types/xml2js": "^0.4.7",
     "express": "^4.17.1",
     "homematic-js-xmlapi": "^0.8.1",
     "prom-client": "^12.0.0",
     "tslib": "^2.0.3",
-    "tslint-config-airbnb": "^5.11.2"
+    "tslint-config-airbnb": "^5.11.2",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {
     "@types/express": "^4.17.9",

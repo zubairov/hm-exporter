@@ -25,16 +25,20 @@ const METRICS: { [key: string]: MetricsDescription } = {
     'WINDOW_STATE': {
         metricName: 'windowState',
         help: 'State of the window 1 for open and 0 for closed'
-    }, 'VALVE_STATE': {
+    },
+    'VALVE_STATE': {
         metricName: 'ventil_state',
         help: 'State of the ventil of the heating'
-    }, 'LEVEL': {
+    },
+    'LEVEL': {
         metricName: 'ventil_level',
         help: 'Ventol level of the heating'
-    }, 'BATTERY_STATE': {
+    },
+    'BATTERY_STATE': {
         metricName: 'battery',
         help: 'Battery voltage level in Volt'
-    }, 'SET_TEMPERATURE': {
+    },
+    'SET_TEMPERATURE': {
         metricName: 'target_temperature',
         help: 'Target temperature that is configured on the device at the moment'
     },
@@ -53,6 +57,46 @@ const METRICS: { [key: string]: MetricsDescription } = {
     'HUMIDITY': {
         metricName: 'measured_humidity',
         help: 'Humidity actually measured by the wall thermostat'
+    },
+    'MANU_MODE': {
+        metricName: 'manual_set_temperature',
+        help: 'Manually set target temperature'
+    },
+    'OPERATING_VOLTAGE': {
+        metricName: 'operating_voltage',
+        help: 'Operating Voltage in Volts'
+    },
+    'CURRENT': {
+        metricName: 'current',
+        help: 'Current in mA'
+    },
+    'ENERGY_COUNTER': {
+        metricName: 'energy_counter',
+        help: 'Consumed energy in Wh'
+    },
+    'FREQUENCY': {
+        metricName: 'frequency',
+        help: 'Electrical current frequency in Hz'
+    },
+    'POWER': {
+        metricName: 'power',
+        help: 'Current power consumption in W'
+    },
+    'VOLTAGE': {
+        metricName: 'current_voltage',
+        help: 'Current current voltage'
+    },
+    'ILLUMINATION': {
+        metricName: 'illumination',
+        help: 'Current illumination of the illumination sensor'
+    },
+    'MOTION': {
+        metricName: 'motion',
+        help: 'Motion detected status (1==true)'
+    },
+    'PRESENCE_DETECTION_STATE': {
+        metricName: 'presence',
+        help: 'State of the presence, 1==presence detected'
     }
 };
 
@@ -69,7 +113,7 @@ for (const [metric, desc] of Object.entries(METRICS)) {
 const unused: { [key: string]: boolean } = {};
 
 const xmlApi = new XmlApi("192.168.178.31", 80);
-collectDefaultMetrics({ gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5]});
+collectDefaultMetrics({ gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5] });
 
 const server = express();
 server.get('/metrics', async (req, res) => {
@@ -109,12 +153,13 @@ async function refreshData() {
                 for (const channel of device.channel.values()) {
                     //console.log(`\t`,channel.toString());
                     for (const dataPoint of channel.dataPoint.values()) {
+                        console.log(`Data point name is ${dataPoint.type}`);
                         const [type, ch, metric] = dataPoint.name.split('.');
                         if (gauges[metric]) {
-                            //console.log(`\t\t${metric} of device=${device.name} channel=${channel.name} address=${ch} has value of ${dataPoint.value}`);
+                            console.log(`\t\t${metric} of device=${device.name} channel=${channel.name} address=${ch} has value of ${dataPoint.value}`);
                             if (dataPoint.value) {
                                 if (typeof dataPoint.value == 'boolean') {
-                                    gauges[metric].labels(device.name, channel.name, ch).set(dataPoint.value?1:0);
+                                    gauges[metric].labels(device.name, channel.name, ch).set(dataPoint.value ? 1 : 0);
                                 } else if (typeof dataPoint.value == 'number') {
                                     gauges[metric].labels(device.name, channel.name, ch).set(dataPoint.value);
                                 } else {
