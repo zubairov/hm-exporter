@@ -131,7 +131,7 @@ server.get('/metrics', async (req, res) => {
 
 
 async function fetchValues() {
-    const URL = `http://192.168.178.31/addons/xmlapi/statelist.cgi`
+    const URL = `http://192.168.178.12/addons/xmlapi/statelist.cgi`
     const saxStream = createStream(true, { lowercase: true, normalize: true });
     let deviceAttributes: { [key: string]: string; } | null = null;
     saxStream.on("error", (e) => {
